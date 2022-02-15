@@ -1,0 +1,20 @@
+[package]
+name = "zilliqa-sdk"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bech32 = "0.8.1"
+hex = "0.4.3"
+sha2 = "0.9.8"
+num-bigint = "0.4.3"
+serde = { version = "1.0.130", features = ["derive"] }
+serde_derive = "1.0.103"
+serde_json = "1.0.69"
+thiserror = "1.0.30"
+reqwest = { version = "0.11.6", default-features = false, features = ["blocking", "rustls-tls", "json"] }
+tokio = { version = "1", features = ["full"] }
+
+[lib]
+crate-type = ["lib"]
+name = "zilliqa_sdk"
