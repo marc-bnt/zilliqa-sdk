@@ -1,12 +1,21 @@
+use hmac::{Hmac, Mac, NewMac};
 use num_bigint::{BigInt, Sign, ToBigInt};
 use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
 use std::ops::BitAnd;
 
+type HmacSha256 = Hmac<Sha256>;
+
 pub fn sha_256(data: &[u8]) -> Vec<u8> {
     let mut hasher = Sha256::new();
     hasher.update(data);
     hasher.finalize().to_vec()
+}
+
+pub fn hash_mac_sha256(key: &[u8], data: &[u8]) -> Vec<u8> {
+    let mut mac = HmacSha256::new_from_slice(key).expect("HMAC can take key of any size");
+    mac.update(&data);
+    mac.finalize().into_bytes().to_vec()
 }
 
 pub fn to_check_sum_address(address: &str) -> String {
@@ -32,6 +41,15 @@ pub fn to_check_sum_address(address: &str) -> String {
     }
 
     ret
+}
+
+pub fn generate_mac(derived_key: &[u8], cipher_text: &[u8], iv: &[u8]) -> Vec<u8> {
+    let mut buffer = Vec::new();
+    buffer.extend_from_slice(&derived_key[16..]);
+    buffer.extend_from_slice(&cipher_text[..]);
+    buffer.extend_from_slice(&iv[..]);
+    buffer.extend_from_slice("aes-128-ctr".as_bytes());
+    hash_mac_sha256(derived_key, &buffer)
 }
 
 #[cfg(test)]
@@ -88,6 +106,22 @@ mod tests {
         assert_eq!(
             to_check_sum_address("50F92304C892D94A385CA6CE6CD6950CE9A36839"),
             "0x50f92304c892D94A385cA6cE6CD6950ce9A36839"
+        );
+    }
+
+    #[test]
+    fn test_generate_mac() {
+        let result = generate_mac(
+            &hex::decode("853e90e2612e676c251846103489b99e67494f6b7b2e808e3de2f39da5a7e48a")
+                .unwrap(),
+            &hex::decode("330fe82f1459a8c30fa454c7c3539c3a77c712273cf790ba3b498307f11da0ee")
+                .unwrap(),
+            &hex::decode("824d307c6bca39423df5e5a78abc0ab5").unwrap(),
+        );
+
+        assert_eq!(
+            hex::encode(result),
+            "b000a4ebbc855f6208df1b26e4dd84cfb9567f460f56857b73802f0f5b46aa69",
         );
     }
 }
