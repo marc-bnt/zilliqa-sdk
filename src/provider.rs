@@ -96,6 +96,10 @@ impl Provider {
         )
     }
 
+    pub fn get_contract_address_from_transaction_id(&self, transaction_id: &str) -> Result<String> {
+        self.call("GetContractAddressFromTransactionID", json!([transaction_id.to_string()]))
+    }
+
     pub fn get_balance(&self, user_address: &str) -> Result<BalanceAndNonce> {
         self.call("GetBalance", json!([user_address.to_string()]))
     }
@@ -152,6 +156,15 @@ mod tests {
         let provider = Provider::new("https://api.zilliqa.com".into());
         let result = provider
             .get_smart_contract_substate("9611c53BE6d1b32058b2747bdeCECed7e1216793", "admins", &[])
+            .unwrap();
+        println!("{:?}", result);
+    }
+
+    #[test]
+    fn get_contract_address_from_transaction_id() {
+        let provider = Provider::new("https://dev-api.zilliqa.com".into());
+        let result = provider
+            .get_contract_address_from_transaction_id("5283d3a37d90b960ff2e7c6b2a6e8b0f5e62ed74f63b268b1b9485aa08026551")
             .unwrap();
         println!("{:?}", result);
     }
