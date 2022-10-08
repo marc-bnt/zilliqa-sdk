@@ -1,4 +1,5 @@
-use rand::random;
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 use secp256k1::rand::rngs::OsRng;
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use sha2::{Digest, Sha256};
@@ -39,12 +40,18 @@ pub fn verify_private_key(private_key: &[u8]) -> bool {
     SecretKey::from_slice(private_key).is_ok()
 }
 
-pub fn generate_random_bytes(n: u32) -> Vec<u8> {
-    (0..n).map(|_| random::<u8>()).collect()
+pub fn generate_random_bytes(n: usize) -> Vec<u8> {
+    let chars: String = (0..n)
+        .map(|_| thread_rng().sample(Alphanumeric) as char)
+        .collect();
+
+    chars.into()
 }
 
 #[cfg(test)]
 mod tests {
+    use std::str::from_utf8;
+
     use super::*;
 
     #[test]
@@ -89,6 +96,6 @@ mod tests {
     #[test]
     fn test_generate_random_bytes() {
         let result = generate_random_bytes(32);
-        println!("{:?}", result);
+        assert!(from_utf8(&result).is_ok());
     }
 }

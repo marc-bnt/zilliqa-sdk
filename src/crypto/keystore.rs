@@ -4,13 +4,13 @@ use std::fmt;
 use aes::cipher::{KeyIvInit, StreamCipher};
 use aes::Aes128;
 use ctr::Ctr64LE;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
 use crate::keytools::{generate_random_bytes, get_address_from_private_key};
 use crate::util::generate_mac;
 
-use super::scrypt;
+use super::{pbkdf2, scrypt};
 
 type Aes128Ctr64LE = Ctr64LE<Aes128>;
 
@@ -23,6 +23,32 @@ pub enum KDFType {
 impl fmt::Display for KDFType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", format!("{:?}", self).to_lowercase())
+    }
+}
+
+impl Serialize for KDFType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(match *self {
+            KDFType::PBKDF2 => "pbkdf2",
+            KDFType::Scrypt => "scrypt",
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for KDFType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(match s.as_str() {
+            "pbkdf2" => KDFType::PBKDF2,
+            "scrypt" => KDFType::Scrypt,
+            _ => unimplemented!(),
+        })
     }
 }
 
@@ -39,7 +65,7 @@ pub struct Crypto {
     cipher: String,
     #[serde(rename = "ciphertext")]
     cipher_text: String,
-    kdf: String,
+    kdf: KDFType,
     mac: String,
     #[serde(rename = "cipherparams")]
     cipher_params: CipherParams,
@@ -87,7 +113,7 @@ pub fn encrypt_private_key(
     let salt = generate_random_bytes(32);
 
     let derived_key = match t {
-        KDFType::PBKDF2 => todo!(),
+        KDFType::PBKDF2 => pbkdf2::get_derived_key(passphrase, &salt, 262144, 32)?,
         KDFType::Scrypt => scrypt::get_derived_key(passphrase, &salt, 8192, 8, 1, 32)?,
     };
 
@@ -105,13 +131,11 @@ pub fn encrypt_private_key(
 
     let kp = KDFParams::new(hex::encode(salt));
 
-    dbg!(KDFType::PBKDF2.to_string());
-    dbg!(KDFType::Scrypt.to_string());
     let crypto = Crypto {
         cipher: "aes-128-ctr".to_string(),
         cipher_params: cp,
         cipher_text: hex::encode(cipher_text),
-        kdf: t.to_string(),
+        kdf: t,
         kdf_params: kp,
         mac: hex::encode(mac),
     };
@@ -135,24 +159,36 @@ pub fn decrypt_private_key(json: &str, passphrase: &str) -> Result<String, Box<d
     let kdf_params = kv.crypto.kdf_params;
     let kdf = kv.crypto.kdf;
 
-    let derived_key = scrypt::get_derived_key(
-        passphrase.as_bytes(),
-        &hex::decode(kdf_params.salt).unwrap(),
-        8192,
-        8,
-        1,
-        32,
-    )?;
+    let derived_key = match kdf {
+        KDFType::PBKDF2 => pbkdf2::get_derived_key(
+            passphrase.as_bytes(),
+            &hex::decode(kdf_params.salt)?,
+            262144,
+            32,
+        )?,
+        KDFType::Scrypt => scrypt::get_derived_key(
+            passphrase.as_bytes(),
+            &hex::decode(kdf_params.salt)?,
+            8192,
+            8,
+            1,
+            32,
+        )?,
+    };
 
-    let mac = generate_mac(&derived_key, &cipher_text, &iv);
+    let mac = hex::encode(generate_mac(&derived_key, &cipher_text, &iv));
 
-    dbg!(mac);
-    dbg!(kv.crypto.mac.as_bytes());
-    // if String::from_utf8(mac).unwrap().to_lowercase() != kv.crypto.mac.to_lowercase() {
-    //     return Err(String::from("Failed to decrypt.").into());
-    // }
+    if mac.to_lowercase() != kv.crypto.mac.to_lowercase() {
+        return Err(String::from("Failed to decrypt.").into());
+    }
 
-    Ok("test".to_string())
+    let encrypt_key = &derived_key[0..16];
+
+    let mut private_key = cipher_text.to_vec();
+    let mut cipher = Aes128Ctr64LE::new(encrypt_key.into(), iv[0..16].into());
+    cipher.apply_keystream(&mut private_key);
+
+    Ok(hex::encode(&private_key))
 }
 
 #[cfg(test)]
@@ -173,7 +209,7 @@ mod tests {
 
     #[test]
     fn test_decrypt_private_key() {
-        let json = "{\"address\":\"b5c2cdd79c37209c3cb59e04b7c4062a8f5d5271\",\"id\":\"979daaf9-daf1-4002-8656-3cea134c9518\",\"version\":3,\"crypto\":{\"cipher\":\"aes-128-ctr\",\"ciphertext\":\"26be10cdae0f397bdeead38e7fcc179957dd5e7ef95a1f0f53f37b7ad1355159\",\"kdf\":\"pbkdf2\",\"mac\":\"81d8e60bc08237e4ba154c0b27ad08562821d8c602ee8a492434128de48b66bc\",\"cipherparams\":{\"iv\":\"fc714ad6267c35a2df4cb3f8b8b3cc0d\"},\"kdfparams\":{\"n\":8192,\"c\":262144,\"r\":8,\"p\":1,\"dklen\":32,\"salt\":\"e22ef8a67a59299cee1532b6c6967bdfb0e75ca3c5dff852f9d8daa04683b0c1\"}}}";
+        let json = "{\"address\":\"b5c2cdd79c37209c3cb59e04b7c4062a8f5d5271\",\"id\":\"27643f03-7aa1-46a4-9c31-cede013023ac\",\"version\":3,\"crypto\":{\"cipher\":\"aes-128-ctr\",\"ciphertext\":\"2566c5a9b8fee98efead1116087a0bccebcbea4e5f501f79875f89705bc036d4\",\"kdf\":\"pbkdf2\",\"mac\":\"f5d06c279a2430b59c8a32cc80ef79c7ade3ba7fbef4c07cf3ab6d0163afadd6\",\"cipherparams\":{\"iv\":\"70646b487868616d544c634d55323634\"},\"kdfparams\":{\"n\":8192,\"c\":262144,\"r\":8,\"p\":1,\"dklen\":32,\"salt\":\"564871524a367a474f77664c7175734d4a45416b76534b43466e6d304c346c68\"}}}";
         let private_key = decrypt_private_key(json, "xiaohuo").unwrap();
 
         assert_eq!(
