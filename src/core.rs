@@ -54,18 +54,19 @@ pub struct TransactionReceipt {
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
     #[serde(rename = "ID")]
-    pub id: String,
+    pub id: Option<String>,
     pub amount: String,
     pub code: Option<String>,
     pub data: Option<String>,
     pub gas_limit: String,
     pub gas_price: String,
-    pub nonce: String,
-    pub receipt: TransactionReceipt,
+    pub nonce: Option<String>,
+    pub receipt: Option<TransactionReceipt>,
     pub sender_pub_key: String,
-    pub signature: String,
+    pub signature: Option<String>,
     pub to_addr: String,
     pub version: String,
+    pub priority: bool,
 }
 
 #[repr(C)]

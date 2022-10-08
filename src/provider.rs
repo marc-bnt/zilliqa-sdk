@@ -73,6 +73,10 @@ impl Provider {
         )
     }
 
+    pub fn get_minimum_gas_price(&self) -> Result<String> {
+        self.call("GetMinimumGasPrice", Value::Null)
+    }
+
     pub fn get_smart_contract_init(&self, contract_address: &str) -> Result<Vec<ContractValue>> {
         self.call(
             "GetSmartContractInit",
@@ -97,7 +101,10 @@ impl Provider {
     }
 
     pub fn get_contract_address_from_transaction_id(&self, transaction_id: &str) -> Result<String> {
-        self.call("GetContractAddressFromTransactionID", json!([transaction_id.to_string()]))
+        self.call(
+            "GetContractAddressFromTransactionID",
+            json!([transaction_id.to_string()]),
+        )
     }
 
     pub fn get_balance(&self, user_address: &str) -> Result<BalanceAndNonce> {
@@ -143,6 +150,13 @@ mod tests {
     }
 
     #[test]
+    fn test_get_minimum_gas_price() {
+        let provider = Provider::new("https://dev-api.zilliqa.com/".into());
+        let result = provider.get_minimum_gas_price().unwrap();
+        println!("{:?}", result);
+    }
+
+    #[test]
     fn test_get_smart_contract_init() {
         let provider = Provider::new("https://api.zilliqa.com".into());
         let result = provider
@@ -164,7 +178,9 @@ mod tests {
     fn get_contract_address_from_transaction_id() {
         let provider = Provider::new("https://dev-api.zilliqa.com".into());
         let result = provider
-            .get_contract_address_from_transaction_id("5283d3a37d90b960ff2e7c6b2a6e8b0f5e62ed74f63b268b1b9485aa08026551")
+            .get_contract_address_from_transaction_id(
+                "5283d3a37d90b960ff2e7c6b2a6e8b0f5e62ed74f63b268b1b9485aa08026551",
+            )
             .unwrap();
         println!("{:?}", result);
     }

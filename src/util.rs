@@ -6,6 +6,10 @@ use std::ops::BitAnd;
 
 type HmacSha256 = Hmac<Sha256>;
 
+pub fn pack(a: u32, b: u32) -> u32 {
+    (a << 16) + b
+}
+
 pub fn sha_256(data: &[u8]) -> Vec<u8> {
     let mut hasher = Sha256::new();
     hasher.update(data);

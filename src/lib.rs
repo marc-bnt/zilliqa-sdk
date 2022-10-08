@@ -5,4 +5,5 @@ pub mod crypto;
 pub mod jsonrpc;
 pub mod keytools;
 pub mod provider;
+pub mod transaction;
 pub mod util;
