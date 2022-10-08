@@ -1,3 +1,3 @@
-mod keystore;
-mod pbkdf2;
-mod scrypt;
+pub mod keystore;
+pub mod pbkdf2;
+pub mod scrypt;

@@ -1,3 +1,4 @@
+pub mod account;
 pub mod bech32;
 pub mod core;
 pub mod crypto;
